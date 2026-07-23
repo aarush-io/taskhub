@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Design language: "Editor's Desk"
+  A dark, ink-and-paper inspired workspace for a writing-ops platform.
+  Accent is a pencil amber, not the default terracotta/acid-green.
+  Status states borrow from proofing marks: a stamped, slightly
+  hand-set feel on badges rather than flat SaaS pills.
+*/
+
+:root.dark,
+:root {
+  --background: 220 14% 6%;
+  --surface: 220 13% 9%;
+  --surface-2: 220 12% 12%;
+  --border: 220 10% 18%;
+  --foreground: 40 14% 92%;
+  --muted: 220 8% 58%;
+  --accent: 36 78% 58%;
+  --accent-foreground: 220 14% 6%;
+  --success: 152 34% 48%;
+  --danger: 4 58% 56%;
+  --info: 217 70% 65%;
+  --ring: 36 78% 58%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+::selection {
+  background-color: hsl(var(--accent) / 0.3);
+}
+
+/* Margin rule: a thin vertical line motif used along the sidebar and
+   section dividers, evoking a manuscript's ruled margin. */
+.margin-rule {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    hsl(var(--border)) 0px,
+    hsl(var(--border)) 4px,
+    transparent 4px,
+    transparent 9px
+  );
+  width: 1px;
+}
+
+/* Proof stamp: used for status badges. Slight rotation + dashed ring
+   gives the "hand marked" feel referenced in the design brief. */
+.proof-stamp {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  transform: rotate(-0.6deg);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 999px;
+}

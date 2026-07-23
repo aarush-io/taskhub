@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  WORKER
+}
+
+enum TaskCategory {
+  POST
+  COMMENT
+  REPLY
+}
+
+enum TaskStatus {
+  AVAILABLE
+  CLAIMED
+  SUBMITTED
+  APPROVED
+  REJECTED
+  NEEDS_REVISION
+  EXPIRED
+}
+
+enum TransactionType {
+  TASK_APPROVAL
+  ADJUSTMENT
+  PAYOUT
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String
+  username       String    @unique
+  role           Role      @default(WORKER)
+  redditUsername String?
+  suspended      Boolean   @default(false)
+  suspendedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  lastLoginAt    DateTime?
+  lastActiveAt   DateTime?
+  lastLoginIp    String?
+  lastClaimAt    DateTime?
+
+  claimedTasks Task[]               @relation("ClaimedBy")
+  createdTasks Task[]               @relation("CreatedTasks")
+  submissions  Submission[]
+  transactions BalanceTransaction[]
+  reviewedSubs Submission[]         @relation("ReviewedBy")
+
+  @@index([role])
+  @@index([lastActiveAt])
+}
+
+model Task {
+  id             String       @id @default(cuid())
+  category       TaskCategory
+  platform       String       @default("reddit")
+  targetUrl      String
+  instructions   String       @db.Text
+  rewardSnapshot Decimal      @db.Decimal(10, 2)
+  status         TaskStatus   @default(AVAILABLE)
+
+  claimedById    String?
+  claimedBy      User?        @relation("ClaimedBy", fields: [claimedById], references: [id])
+  claimedAt      DateTime?
+  claimExpiresAt DateTime?
+
+  createdById    String
+  createdBy      User         @relation("CreatedTasks", fields: [createdById], references: [id])
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  submission     Submission?
+
+  @@index([status])
+  @@index([category])
+  @@index([claimedById])
+}
+
+model Submission {
+  id       String @id @default(cuid())
+  taskId   String @unique
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  workerId String
+  worker   User   @relation(fields: [workerId], references: [id])
+
+  mainLink    String
+  randomLink1 String
+  randomLink2 String
+  randomLink3 String
+
+  status TaskStatus @default(SUBMITTED)
+
+  reviewedById String?
+  reviewedBy   User?     @relation("ReviewedBy", fields: [reviewedById], references: [id])
+
+  reviewedAt DateTime?
+  adminNote  String? @db.Text
+
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workerId])
+  @@index([status])
+  @@index([mainLink])
+}
+
+model BalanceTransaction {
+  id        String          @id @default(cuid())
+  workerId  String
+  worker    User            @relation(fields: [workerId], references: [id])
+
+  taskId String?
+
+  amount Decimal @db.Decimal(10, 2)
+
+  type TransactionType
+
+  note String?
+
+  createdAt DateTime @default(now())
+
+  @@index([workerId])
+  @@index([createdAt])
+}
+
+model GlobalSettings {
+  id               String   @id @default("singleton")
+
+  postReward       Decimal  @default(2.00) @db.Decimal(10, 2)
+  commentReward    Decimal  @default(1.00) @db.Decimal(10, 2)
+  replyReward      Decimal  @default(0.50) @db.Decimal(10, 2)
+
+  claimCooldownMin Int @default(30)
+  claimTimeoutMin  Int @default(60)
+  maxActiveTasks   Int @default(3)
+
+  updatedAt DateTime @updatedAt
+}
