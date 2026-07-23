@@ -8,6 +8,16 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Wallet, Clock, CheckCircle2, XCircle, ListChecks } from "lucide-react";
 
+type RecentSubmission = {
+  id: string;
+  status: string;
+  submittedAt: string;
+  task: {
+    category: string;
+    rewardSnapshot: string;
+  };
+};
+
 export default async function WorkerOverviewPage() {
   const session = await auth();
   const workerId = session!.user.id;
@@ -22,10 +32,19 @@ export default async function WorkerOverviewPage() {
       include: { task: true },
       orderBy: { submittedAt: "desc" },
       take: 5,
-    }),
+    }) as Promise<Array<{ id: string; status: string; submittedAt: Date; task: { category: string; rewardSnapshot: unknown } }>>,
   ]);
 
   const completed = approved + rejected;
+  const normalizedRecentSubmissions: RecentSubmission[] = recentSubmissions.map((submission) => ({
+    id: submission.id,
+    status: submission.status,
+    submittedAt: submission.submittedAt.toISOString(),
+    task: {
+      category: submission.task.category,
+      rewardSnapshot: submission.task.rewardSnapshot.toString(),
+    },
+  }));
 
   const cards = [
     { label: "Available balance", value: formatCurrency(balance.toString()), icon: Wallet },
@@ -59,11 +78,11 @@ export default async function WorkerOverviewPage() {
           </Button>
         </CardHeader>
         <CardContent>
-          {recentSubmissions.length === 0 ? (
+          {normalizedRecentSubmissions.length === 0 ? (
             <EmptyState />
           ) : (
             <div className="divide-y divide-border">
-              {recentSubmissions.map((s) => (
+              {normalizedRecentSubmissions.map((s) => (
                 <div key={s.id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm font-medium">{s.task.category} · Reddit</p>
