@@ -9,6 +9,14 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 
+type MyClaim = {
+  id: string;
+  category: string;
+  rewardSnapshot: string;
+  instructions: string;
+  status: string;
+};
+
 export default async function BrowseTasksPage({
   searchParams,
 }: {
@@ -23,16 +31,24 @@ export default async function BrowseTasksPage({
     prisma.task.findMany({
       where: { claimedById: workerId, status: { in: ["CLAIMED", "NEEDS_REVISION"] } },
       orderBy: { claimedAt: "asc" },
-    }),
+    }) as Promise<Array<{ id: string; category: string; rewardSnapshot: unknown; instructions: string; status: string }>>,
   ]);
+
+  const normalizedMyClaims: MyClaim[] = myClaims.map((task) => ({
+    id: task.id,
+    category: task.category,
+    rewardSnapshot: task.rewardSnapshot.toString(),
+    instructions: task.instructions,
+    status: task.status,
+  }));
 
   return (
     <div className="space-y-8">
-      {myClaims.length > 0 && (
+      {normalizedMyClaims.length > 0 && (
         <section className="space-y-3">
           <h2 className="font-display text-lg">Your active claims</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {myClaims.map((task) => (
+            {normalizedMyClaims.map((task) => (
               <Card key={task.id}>
                 <CardContent className="flex flex-col gap-3 p-4">
                   <div className="flex items-center justify-between">
