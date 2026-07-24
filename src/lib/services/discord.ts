@@ -5,7 +5,7 @@ export async function sendAvailableTasksNotification(availableTasks: number) {
     return { sent: false, reason: availableTasks < 1 ? "no-tasks" : "not-configured" } as const;
   }
 
-  const appUrl = (process.env.AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const appUrl = (process.env.AUTH_URL!).replace(/\/$/, "");
   const noun = availableTasks === 1 ? "Task" : "Tasks";
   const content = `🚨 **${availableTasks} ${noun} Available!** 🚨\n\nThere are currently ${availableTasks} available tasks on TaskHorizon.\n\n${appUrl}/dashboard`;
   const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
