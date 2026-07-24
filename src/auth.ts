@@ -1,9 +1,6 @@
 import NextAuth from "next-auth";
-import authConfig from "./auth.config";
-
 import Credentials from "next-auth/providers/credentials";
 import Discord from "next-auth/providers/discord";
-
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validations/auth";
@@ -13,7 +10,6 @@ function discordIdFrom(
   profile: unknown
 ) {
   if (account?.provider !== "discord") return null;
-
   if (
     profile &&
     typeof profile === "object" &&
@@ -22,21 +18,21 @@ function discordIdFrom(
   ) {
     return profile.id;
   }
-
   return account.providerAccountId ?? null;
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  ...authConfig,
-
+  session: { strategy: "jwt" },
+  pages: {
+    signIn: "/login",
+  },
   providers: [
     Credentials({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-
-      async authorize(raw) {
+      authorize: async (raw) => {
         const parsed = loginSchema.safeParse(raw);
         if (!parsed.success) return null;
 
@@ -72,7 +68,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         };
       },
     }),
-
     ...(process.env.DISCORD_CLIENT_ID &&
     process.env.DISCORD_CLIENT_SECRET
       ? [
@@ -83,13 +78,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         ]
       : []),
   ],
-
   callbacks: {
-    async signIn({ account, profile }) {
+    signIn: async ({ account, profile }) => {
       const discordId = discordIdFrom(account, profile);
 
-      if (!discordId)
+      if (!discordId) {
         return account?.provider !== "discord";
+      }
 
       const user = await prisma.user.findUnique({
         where: { discordId },
@@ -98,7 +93,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return Boolean(user && !user.suspended);
     },
 
-    async jwt({ token, user, account, profile }) {
+    jwt: async ({ token, user, account, profile }) => {
       const discordId = discordIdFrom(account, profile);
 
       if (discordId) {
@@ -117,16 +112,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       if (user) {
         token.id = user.id as string;
-        token.role = (user as any).role;
+        token.role = (user as { role: "ADMIN" | "WORKER" }).role;
       }
 
       return token;
     },
 
-    async session({ session, token }) {
+    session: async ({ session, token }) => {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as any;
+        session.user.role = token.role as "ADMIN" | "WORKER";
         session.user.name = token.name;
         session.user.email = token.email ?? "";
       }
