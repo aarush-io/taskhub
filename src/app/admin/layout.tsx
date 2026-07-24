@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { getCurrentSession } from "@/lib/session";
 import { Sidebar } from "@/components/shared/sidebar";
 import { Topbar } from "@/components/shared/topbar";
 import { MobileNav } from "@/components/shared/mobile-nav";
+import { PageTransition } from "@/components/shared/page-transition";
 import { adminNav } from "@/components/shared/nav-items";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
+  const session = await getCurrentSession();
   if (!session?.user || session.user.role !== "ADMIN") redirect("/login");
 
   return (
@@ -19,7 +20,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           email={session.user.email ?? ""}
           navItems={adminNav}
         />
-        <main className="flex-1 px-5 py-6 pb-24 md:pb-6">{children}</main>
+        <main className="flex-1 px-5 py-6 pb-24 md:pb-6">
+          <PageTransition>{children}</PageTransition>
+        </main>
       </div>
       <MobileNav items={adminNav} />
     </div>

@@ -1,6 +1,6 @@
-# Desk — Internal Writing Task Platform
+# TaskHorizon — Task Workflow Platform
 
-A private microtask platform for distributing writing tasks (Reddit posts,
+A task workflow platform for distributing structured online tasks (such as community responses,
 comments, replies) to a managed pool of registered workers. Not a public
 marketplace — admins create tasks manually and workers claim, submit, and
 get reviewed.
@@ -32,8 +32,9 @@ Sign in with the seeded admin credentials (`SEED_ADMIN_EMAIL` /
 | `DATABASE_URL` | Pooled Supabase connection (port 6543) used at runtime |
 | `DIRECT_URL` | Direct Supabase connection (port 5432) used for migrations |
 | `AUTH_SECRET` | Auth.js session encryption secret — generate with `openssl rand -base64 32` |
-| `AUTH_URL` | Full URL of the deployment (e.g. `https://desk.yourdomain.com`) |
+| `AUTH_URL` | Full URL of the deployment (e.g. `https://taskhorizon.yourdomain.com`) |
 | `CRON_SECRET` | Optional — protects the `/api/cron/expire-claims` route |
+| `DISCORD_TASKS_CHANNEL_ID` | Discord channel ID for the minimal available-task count alert |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Used only by `prisma/seed.ts` |
 
 ## Architecture notes

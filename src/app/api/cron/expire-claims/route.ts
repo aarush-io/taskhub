@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { expireStaleClaims } from "@/lib/services/tasks";
+import { revalidateTag } from "next/cache";
+import { countAvailableTasks, expireStaleClaims } from "@/lib/services/tasks";
+import { sendAvailableTasksNotification } from "@/lib/services/discord";
 
 // Triggered by Vercel Cron (see vercel.json). Protects against a claimed
 // task sitting forever if a worker never submits or comes back.
@@ -10,5 +12,13 @@ export async function GET(request: Request) {
   }
 
   const released = await expireStaleClaims();
-  return NextResponse.json({ released });
+  if (released > 0) revalidateTag("available-tasks");
+  const availableTasks = await countAvailableTasks();
+  try {
+    const notification = await sendAvailableTasksNotification(availableTasks);
+    return NextResponse.json({ released, availableTasks, notification });
+  } catch (error) {
+    console.error("Task notification failed", error);
+    return NextResponse.json({ released, availableTasks, notification: { sent: false, reason: "delivery-failed" } }, { status: 502 });
+  }
 }

@@ -1,6 +1,7 @@
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { getWorkerBalance } from "@/lib/services/balance";
+import { getCurrentSession } from "@/lib/session";
+import { getWorkerOverview } from "@/lib/services/worker-overview";
+import { getBrowseTasksData } from "@/lib/services/tasks";
+import { BrowseTasksView } from "@/components/dashboard/browse-tasks-view";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatCurrency, timeAgo } from "@/lib/utils";
@@ -8,46 +9,21 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Wallet, Clock, CheckCircle2, XCircle, ListChecks } from "lucide-react";
 
-type RecentSubmission = {
-  id: string;
-  status: string;
-  submittedAt: string;
-  task: {
-    category: string;
-    rewardSnapshot: string;
-  };
-};
-
-export default async function WorkerOverviewPage() {
-  const session = await auth();
+export default async function WorkerOverviewPage({ searchParams }: { searchParams: Promise<{ category?: "POST" | "COMMENT" | "REPLY" }> }) {
+  const session = await getCurrentSession();
   const workerId = session!.user.id;
+  const { category } = await searchParams;
 
-  const [balance, pending, approved, rejected, recentSubmissions] = await Promise.all([
-    getWorkerBalance(workerId),
-    prisma.submission.count({ where: { workerId, status: "SUBMITTED" } }),
-    prisma.submission.count({ where: { workerId, status: "APPROVED" } }),
-    prisma.submission.count({ where: { workerId, status: "REJECTED" } }),
-    prisma.submission.findMany({
-      where: { workerId },
-      include: { task: true },
-      orderBy: { submittedAt: "desc" },
-      take: 5,
-    }) as Promise<Array<{ id: string; status: string; submittedAt: Date; task: { category: string; rewardSnapshot: unknown } }>>,
+  // Both of these are independent reads - run them concurrently instead of
+  // waterfalling one after the other.
+  const [{ balance, pending, approved, rejected, recentSubmissions }, browseTasksData] = await Promise.all([
+    getWorkerOverview(workerId),
+    getBrowseTasksData(workerId, category),
   ]);
-
   const completed = approved + rejected;
-  const normalizedRecentSubmissions: RecentSubmission[] = recentSubmissions.map((submission) => ({
-    id: submission.id,
-    status: submission.status,
-    submittedAt: submission.submittedAt.toISOString(),
-    task: {
-      category: submission.task.category,
-      rewardSnapshot: submission.task.rewardSnapshot.toString(),
-    },
-  }));
 
   const cards = [
-    { label: "Available balance", value: formatCurrency(balance.toString()), icon: Wallet },
+    { label: "Available balance", value: formatCurrency(balance), icon: Wallet },
     { label: "Pending review", value: pending, icon: Clock },
     { label: "Approved", value: approved, icon: CheckCircle2 },
     { label: "Rejected", value: rejected, icon: XCircle },
@@ -70,19 +46,23 @@ export default async function WorkerOverviewPage() {
         ))}
       </div>
 
+      <section id="tasks" className="border-t border-border pt-6">
+        <BrowseTasksView {...browseTasksData} />
+      </section>
+
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>Recent submissions</CardTitle>
           <Button asChild variant="outline" size="sm">
-            <Link href="/dashboard/tasks">Browse tasks</Link>
+            <Link href="/dashboard#tasks">Browse tasks</Link>
           </Button>
         </CardHeader>
         <CardContent>
-          {normalizedRecentSubmissions.length === 0 ? (
+          {recentSubmissions.length === 0 ? (
             <EmptyState />
           ) : (
             <div className="divide-y divide-border">
-              {normalizedRecentSubmissions.map((s) => (
+              {recentSubmissions.map((s) => (
                 <div key={s.id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm font-medium">{s.task.category} · Reddit</p>
@@ -110,7 +90,7 @@ function EmptyState() {
       <p className="text-sm font-medium">Nothing submitted yet</p>
       <p className="text-sm text-muted">Claim your first task to get started.</p>
       <Button asChild size="sm" className="mt-2">
-        <Link href="/dashboard/tasks">Browse available tasks</Link>
+        <Link href="/dashboard#tasks">Browse available tasks</Link>
       </Button>
     </div>
   );

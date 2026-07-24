@@ -91,6 +91,12 @@ export function CreateTaskDialog() {
             <Textarea id="instructions" rows={4} {...register("instructions")} />
             {errors.instructions && <p className="text-xs text-danger">{errors.instructions.message}</p>}
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="publishAt">Publish at (optional)</Label>
+            <Input id="publishAt" type="datetime-local" {...register("publishAt")} />
+            <p className="text-xs text-muted">Leave blank to publish immediately.</p>
+            {errors.publishAt && <p className="text-xs text-danger">{errors.publishAt.message}</p>}
+          </div>
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Creating…" : "Create task"}

@@ -9,6 +9,7 @@ export const createTaskSchema = z.object({
     .url("Enter a valid URL")
     .refine((url) => url.includes("reddit.com"), "Target URL must be a Reddit link"),
   instructions: z.string().min(10, "Add at least a sentence of instructions").max(4000),
+  publishAt: z.string().optional().refine((value) => !value || !Number.isNaN(Date.parse(value)), "Enter a valid publish date"),
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
@@ -52,6 +53,9 @@ export const updateSettingsSchema = z.object({
   claimCooldownMin: z.coerce.number().int().min(0),
   claimTimeoutMin: z.coerce.number().int().min(5),
   maxActiveTasks: z.coerce.number().int().min(1),
+  referralReward: z.coerce.number().min(0),
+  referredWorkerBonus: z.coerce.number().min(0),
+  discordSupportUrl: z.union([z.string().url("Enter a valid Discord URL"), z.literal("")]).optional(),
 });
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;

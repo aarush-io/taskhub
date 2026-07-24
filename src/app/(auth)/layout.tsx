@@ -1,4 +1,4 @@
-import { PenLine } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,10 +8,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="w-full max-w-sm animate-slide-up">
         <div className="mb-8 flex flex-col items-center gap-2 text-center">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent/10 text-accent">
-            <PenLine className="h-5 w-5" />
+            <Sparkles className="h-5 w-5" />
           </div>
-          <h1 className="font-display text-2xl font-medium">Desk</h1>
-          <p className="text-sm text-muted">The internal writing task workspace</p>
+          <h1 className="font-display text-2xl font-medium">TaskHorizon</h1>
+          <p className="text-sm text-muted">Your workspace for clear tasks and real progress</p>
         </div>
         {children}
       </div>

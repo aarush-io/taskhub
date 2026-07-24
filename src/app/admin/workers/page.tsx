@@ -34,6 +34,7 @@ export default async function AdminWorkersPage({
                     <th className="px-4 py-3 font-medium">Username</th>
                     <th className="px-4 py-3 font-medium">Email</th>
                     <th className="px-4 py-3 font-medium">Reddit</th>
+                    <th className="px-4 py-3 font-medium">Discord</th>
                     <th className="px-4 py-3 font-medium">Balance</th>
                     <th className="px-4 py-3 font-medium">Last active</th>
                     <th className="px-4 py-3 font-medium">Status</th>
@@ -48,7 +49,8 @@ export default async function AdminWorkersPage({
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-muted">{w.email}</td>
-                      <td className="px-4 py-3 text-muted">{w.redditUsername ?? "—"}</td>
+                      <td className="px-4 py-3 text-muted">{w.redditUsername ? `u/${w.redditUsername.replace(/^u\//, "")}` : "Not linked"}</td>
+                      <td className="px-4 py-3 text-muted">{w.discordUsername ? `@${w.discordUsername}` : "Not linked"}</td>
                       <td className="px-4 py-3 font-mono">{formatCurrency(w.balance.toString())}</td>
                       <td className="px-4 py-3 text-muted">{timeAgo(w.lastActiveAt)}</td>
                       <td className="px-4 py-3">
@@ -64,15 +66,19 @@ export default async function AdminWorkersPage({
       </Card>
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 text-sm text-muted">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <Link
-              key={p}
-              href={`/admin/workers?${new URLSearchParams({ ...(q ? { q } : {}), page: String(p) })}`}
-              className={p === currentPage ? "font-medium text-accent" : "hover:text-foreground"}
-            >
-              {p}
+          {currentPage > 1 && (
+            <Link href={`/admin/workers?${new URLSearchParams({ ...(q ? { q } : {}), page: String(currentPage - 1) })}`}>
+              Previous
             </Link>
-          ))}
+          )}
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          {currentPage < totalPages && (
+            <Link href={`/admin/workers?${new URLSearchParams({ ...(q ? { q } : {}), page: String(currentPage + 1) })}`}>
+              Next
+            </Link>
+          )}
         </div>
       )}
     </div>

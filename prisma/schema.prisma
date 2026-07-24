@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -30,8 +31,16 @@ enum TaskStatus {
 
 enum TransactionType {
   TASK_APPROVAL
+  REFERRAL_REWARD
+  REFERRAL_BONUS
   ADJUSTMENT
   PAYOUT
+}
+
+enum ReferralStatus {
+  PENDING
+  SUCCESSFUL
+  REJECTED
 }
 
 model User {
@@ -43,20 +52,44 @@ model User {
   redditUsername String?
   suspended      Boolean   @default(false)
   suspendedAt    DateTime?
+  claimBanned    Boolean   @default(false)
+  claimBannedAt  DateTime?
   createdAt      DateTime  @default(now())
   lastLoginAt    DateTime?
   lastActiveAt   DateTime?
   lastLoginIp    String?
   lastClaimAt    DateTime?
+  referralCode   String    @unique
+  discordId      String?   @unique
+  discordUsername String?
+  discordAvatar  String?
+  discordLinkedAt DateTime?
+  discordUnlinkedAt DateTime?
 
   claimedTasks Task[]               @relation("ClaimedBy")
   createdTasks Task[]               @relation("CreatedTasks")
   submissions  Submission[]
   transactions BalanceTransaction[]
   reviewedSubs Submission[]         @relation("ReviewedBy")
+  referralsMade Referral[]          @relation("Referrer")
+  referralReceived Referral?        @relation("Referred")
 
   @@index([role])
   @@index([lastActiveAt])
+  @@index([role, lastActiveAt])
+}
+
+model Referral {
+  id          String         @id @default(cuid())
+  referrerId  String
+  referrer    User           @relation("Referrer", fields: [referrerId], references: [id])
+  referredId  String         @unique
+  referred    User           @relation("Referred", fields: [referredId], references: [id])
+  status      ReferralStatus @default(PENDING)
+  rewardedAt  DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([referrerId, status])
 }
 
 model Task {
@@ -67,6 +100,8 @@ model Task {
   instructions   String       @db.Text
   rewardSnapshot Decimal      @db.Decimal(10, 2)
   status         TaskStatus   @default(AVAILABLE)
+  scheduledFor   DateTime?
+  isPaused       Boolean      @default(false)
 
   claimedById    String?
   claimedBy      User?        @relation("ClaimedBy", fields: [claimedById], references: [id])
@@ -84,6 +119,10 @@ model Task {
   @@index([status])
   @@index([category])
   @@index([claimedById])
+  @@index([status, category, createdAt])
+  @@index([status, isPaused, scheduledFor])
+  @@index([claimedById, status])
+  @@index([createdById])
 }
 
 model Submission {
@@ -113,6 +152,9 @@ model Submission {
   @@index([workerId])
   @@index([status])
   @@index([mainLink])
+  @@index([workerId, submittedAt])
+  @@index([status, submittedAt])
+  @@index([reviewedById])
 }
 
 model BalanceTransaction {
@@ -132,6 +174,7 @@ model BalanceTransaction {
 
   @@index([workerId])
   @@index([createdAt])
+  @@index([workerId, type])
 }
 
 model GlobalSettings {
@@ -144,6 +187,9 @@ model GlobalSettings {
   claimCooldownMin Int @default(30)
   claimTimeoutMin  Int @default(60)
   maxActiveTasks   Int @default(3)
+  referralReward   Decimal @default(0) @db.Decimal(10, 2)
+  referredWorkerBonus Decimal @default(0) @db.Decimal(10, 2)
+  discordSupportUrl  String?
 
   updatedAt DateTime @updatedAt
 }

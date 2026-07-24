@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { auth } from "@/auth";
 import { claimTask, submitTask, TaskError } from "@/lib/services/tasks";
 import { submitTaskSchema, SubmitTaskInput } from "@/lib/validations/task";
@@ -13,6 +13,9 @@ export async function claimTaskAction(taskId: string) {
 
   try {
     await claimTask(taskId, session.user.id);
+    revalidateTag("admin-analytics");
+    revalidateTag("available-tasks");
+    revalidateTag("worker-overview");
     revalidatePath("/dashboard/tasks");
     revalidatePath("/dashboard");
     return { success: true };
@@ -36,6 +39,10 @@ export async function submitTaskAction(input: SubmitTaskInput) {
 
   try {
     await submitTask(parsed.data, session.user.id);
+    revalidateTag("admin-analytics");
+    revalidateTag("admin-reviews");
+    revalidateTag("admin-tasks");
+    revalidateTag("worker-overview");
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/history");
     return { success: true };

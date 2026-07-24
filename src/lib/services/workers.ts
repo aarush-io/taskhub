@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getWorkerBalance } from "@/lib/services/balance";
 
@@ -23,9 +24,19 @@ export async function searchWorkers(query: string, page = 1, pageSize = 20) {
     prisma.user.count({ where }),
   ]);
 
-  const withBalances = await Promise.all(
-    workers.map(async (w) => ({ ...w, balance: await getWorkerBalance(w.id) }))
-  );
+  const balances =
+    workers.length === 0
+      ? []
+      : await prisma.balanceTransaction.groupBy({
+          by: ["workerId"],
+          where: { workerId: { in: workers.map((worker) => worker.id) } },
+          _sum: { amount: true },
+        });
+  const balanceByWorkerId = new Map(balances.map((balance) => [balance.workerId, balance._sum.amount]));
+  const withBalances = workers.map((worker) => ({
+    ...worker,
+    balance: balanceByWorkerId.get(worker.id) ?? new Prisma.Decimal(0),
+  }));
 
   return { workers: withBalances, total, page, pageSize };
 }

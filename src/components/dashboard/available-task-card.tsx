@@ -7,14 +7,13 @@ import { ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { claimTaskAction } from "@/app/actions/tasks";
 
 type AvailableTask = {
   id: string;
   category: string;
   targetUrl: string;
-  instructions: string;
   rewardSnapshot: string | number;
 };
 
@@ -37,13 +36,18 @@ export function AvailableTaskCard({ task }: { task: AvailableTask }) {
   };
 
   return (
-    <Card className={claimed ? "opacity-50" : undefined}>
+    <Card
+      className={cn(
+        "transition-transform duration-200",
+        claimed ? "opacity-50" : "hover:-translate-y-0.5 hover:border-border-strong"
+      )}
+    >
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between">
           <Badge variant="accent">{task.category}</Badge>
           <span className="font-mono text-sm text-muted">{formatCurrency(task.rewardSnapshot)}</span>
         </div>
-        <p className="line-clamp-3 text-sm text-foreground/90">{task.instructions}</p>
+        <p className="text-sm text-muted">Claim this task to view the full instructions.</p>
         <a
           href={task.targetUrl}
           target="_blank"

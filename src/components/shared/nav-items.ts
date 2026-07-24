@@ -1,21 +1,32 @@
-import { LayoutDashboard, ListChecks, History, ClipboardPlus, ClipboardCheck, Users, Settings } from "lucide-react";
-
 export type NavItem = {
   label: string;
   href: string;
-  icon: typeof LayoutDashboard;
+  icon: NavIconName;
 };
 
+export type NavIconName =
+  | "layout-dashboard"
+  | "list-checks"
+  | "history"
+  | "gift"
+  | "clipboard-plus"
+  | "clipboard-check"
+  | "users"
+  | "settings"
+  | "radio";
+
 export const workerNav: NavItem[] = [
-  { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Browse tasks", href: "/dashboard/tasks", icon: ListChecks },
-  { label: "History", href: "/dashboard/history", icon: History },
+  { label: "Overview", href: "/dashboard", icon: "layout-dashboard" },
+  { label: "Task tracking", href: "/dashboard/history", icon: "history" },
+  { label: "Referrals", href: "/dashboard/referrals", icon: "gift" },
+  { label: "Settings", href: "/dashboard/settings", icon: "settings" },
 ];
 
 export const adminNav: NavItem[] = [
-  { label: "Overview", href: "/admin", icon: LayoutDashboard },
-  { label: "Tasks", href: "/admin/tasks", icon: ClipboardPlus },
-  { label: "Reviews", href: "/admin/reviews", icon: ClipboardCheck },
-  { label: "Workers", href: "/admin/workers", icon: Users },
-  { label: "Settings", href: "/admin/settings", icon: Settings },
+  { label: "Overview", href: "/admin", icon: "layout-dashboard" },
+  { label: "Active work", href: "/admin/active", icon: "radio" },
+  { label: "Tasks", href: "/admin/tasks", icon: "clipboard-plus" },
+  { label: "Reviews", href: "/admin/reviews", icon: "clipboard-check" },
+  { label: "Workers", href: "/admin/workers", icon: "users" },
+  { label: "Settings", href: "/admin/settings", icon: "settings" },
 ];

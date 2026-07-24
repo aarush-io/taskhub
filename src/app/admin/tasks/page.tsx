@@ -1,15 +1,16 @@
-import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import { ADMIN_LIST_PAGE_SIZE, getAdminTasksPage } from "@/lib/services/admin-lists";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { CreateTaskDialog } from "@/components/admin/create-task-dialog";
 import { formatCurrency, timeAgo } from "@/lib/utils";
+import { TaskControls } from "@/components/admin/task-controls";
 
-export default async function AdminTasksPage() {
-  const tasks = await prisma.task.findMany({
-    include: { claimedBy: { select: { username: true } } },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+export default async function AdminTasksPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const { page } = await searchParams;
+  const currentPage = Math.max(1, Number(page) || 1);
+  const { tasks, total } = await getAdminTasksPage(currentPage);
+  const totalPages = Math.max(1, Math.ceil(total / ADMIN_LIST_PAGE_SIZE));
 
   return (
     <div className="space-y-4">
@@ -31,6 +32,7 @@ export default async function AdminTasksPage() {
                     <th className="px-4 py-3 font-medium">Claimed by</th>
                     <th className="px-4 py-3 font-medium">Created</th>
                     <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -43,6 +45,7 @@ export default async function AdminTasksPage() {
                       <td className="px-4 py-3">
                         <StatusBadge status={t.status} />
                       </td>
+                      <td className="px-4 py-3"><TaskControls taskId={t.id} paused={t.isPaused} claimed={Boolean(t.claimedById)} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -51,6 +54,15 @@ export default async function AdminTasksPage() {
           )}
         </CardContent>
       </Card>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 text-sm text-muted">
+          {currentPage > 1 && <Link href={`/admin/tasks?page=${currentPage - 1}`}>Previous</Link>}
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          {currentPage < totalPages && <Link href={`/admin/tasks?page=${currentPage + 1}`}>Next</Link>}
+        </div>
+      )}
     </div>
   );
 }

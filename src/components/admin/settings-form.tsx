@@ -18,6 +18,9 @@ type Defaults = {
   claimCooldownMin: number;
   claimTimeoutMin: number;
   maxActiveTasks: number;
+  referralReward: number;
+  referredWorkerBonus: number;
+  discordSupportUrl: string;
 };
 
 export function SettingsForm({ defaults }: { defaults: Defaults }) {
@@ -58,6 +61,27 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
 
       <Card>
         <CardHeader>
+          <CardTitle>Worker support</CardTitle>
+          <CardDescription>Workers see this link only while they have an active task, so help stays attached to the work they need help with.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <TextField label="Discord support channel or invite URL" error={errors.discordSupportUrl?.message} placeholder="https://discord.gg/your-server" {...register("discordSupportUrl")} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Referrals</CardTitle>
+          <CardDescription>Rewards are issued only after a referred worker&apos;s first approved task.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <Field label="Referrer reward ($)" error={errors.referralReward?.message} {...register("referralReward")} />
+          <Field label="Referred worker bonus ($)" error={errors.referredWorkerBonus?.message} {...register("referredWorkerBonus")} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Claiming</CardTitle>
           <CardDescription>Controls how tasks flow through the pool.</CardDescription>
         </CardHeader>
@@ -84,6 +108,20 @@ function Field({
     <div className="space-y-1.5">
       <Label>{label}</Label>
       <Input type="number" step="0.01" {...props} />
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  error,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Input type="url" {...props} />
       {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   );

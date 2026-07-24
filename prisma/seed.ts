@@ -22,6 +22,7 @@ async function main() {
         username: "admin",
         passwordHash,
         role: "ADMIN",
+        referralCode: "ADMIN00001",
       },
     });
     console.log(`Created admin user: ${adminEmail} / ${adminPassword} (change this password immediately)`);

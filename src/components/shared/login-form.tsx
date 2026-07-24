@@ -33,7 +33,8 @@ export function LoginForm() {
     }
 
     toast.success("Welcome back.");
-    router.push(params.get("callbackUrl") ?? "/");
+    const callbackUrl = params.get("callbackUrl");
+    router.replace(callbackUrl && callbackUrl !== "/" ? callbackUrl : "/post-login");
     router.refresh();
   };
 
@@ -51,6 +52,9 @@ export function LoginForm() {
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "Signing in…" : "Sign in"}
+      </Button>
+      <Button type="button" variant="outline" className="w-full" onClick={() => signIn("discord", { callbackUrl: params.get("callbackUrl") ?? "/post-login" })}>
+        Sign in with Discord
       </Button>
     </form>
   );

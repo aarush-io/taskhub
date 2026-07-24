@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { NavItem } from "@/components/shared/nav-items";
+import { NavIcon } from "@/components/shared/nav-icon";
 
 export function CommandPalette({
   items,
@@ -38,7 +39,6 @@ export function CommandPalette({
         <CommandEmpty>No matches.</CommandEmpty>
         <CommandGroup heading="Navigate">
           {items.map((item) => {
-            const Icon = item.icon;
             return (
               <CommandItem
                 key={item.href}
@@ -47,7 +47,7 @@ export function CommandPalette({
                   setOpen(false);
                 }}
               >
-                <Icon className="h-4 w-4" />
+                <NavIcon name={item.icon} className="h-4 w-4" />
                 {item.label}
               </CommandItem>
             );

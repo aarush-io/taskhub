@@ -14,6 +14,9 @@ export default async function AdminSettingsPage() {
           claimCooldownMin: settings.claimCooldownMin,
           claimTimeoutMin: settings.claimTimeoutMin,
           maxActiveTasks: settings.maxActiveTasks,
+          referralReward: Number(settings.referralReward),
+          referredWorkerBonus: Number(settings.referredWorkerBonus),
+          discordSupportUrl: settings.discordSupportUrl ?? "",
         }}
       />
     </div>

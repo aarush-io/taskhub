@@ -1,15 +1,15 @@
-import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import { ADMIN_LIST_PAGE_SIZE, getAdminReviewsPage } from "@/lib/services/admin-lists";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, timeAgo } from "@/lib/utils";
 import { ReviewActions } from "@/components/admin/review-actions";
 import { ExternalLink } from "lucide-react";
 
-export default async function AdminReviewsPage() {
-  const submissions = await prisma.submission.findMany({
-    where: { status: "SUBMITTED" },
-    include: { task: true, worker: true },
-    orderBy: { submittedAt: "asc" },
-  });
+export default async function AdminReviewsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const { page } = await searchParams;
+  const currentPage = Math.max(1, Number(page) || 1);
+  const { submissions, total } = await getAdminReviewsPage(currentPage);
+  const totalPages = Math.max(1, Math.ceil(total / ADMIN_LIST_PAGE_SIZE));
 
   return (
     <div className="space-y-4">
@@ -40,6 +40,15 @@ export default async function AdminReviewsPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 text-sm text-muted">
+          {currentPage > 1 && <Link href={`/admin/reviews?page=${currentPage - 1}`}>Previous</Link>}
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          {currentPage < totalPages && <Link href={`/admin/reviews?page=${currentPage + 1}`}>Next</Link>}
         </div>
       )}
     </div>

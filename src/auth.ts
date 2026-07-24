@@ -1,8 +1,15 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Discord from "next-auth/providers/discord";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validations/auth";
+
+function discordIdFrom(account: { provider?: string; providerAccountId?: string } | null | undefined, profile: unknown) {
+  if (account?.provider !== "discord") return null;
+  if (profile && typeof profile === "object" && "id" in profile && typeof profile.id === "string") return profile.id;
+  return account.providerAccountId ?? null;
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
@@ -40,9 +47,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         };
       },
     }),
+    ...(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET
+      ? [Discord({ clientId: process.env.DISCORD_CLIENT_ID, clientSecret: process.env.DISCORD_CLIENT_SECRET })]
+      : []),
   ],
   callbacks: {
-    jwt: async ({ token, user }) => {
+    signIn: async ({ account, profile }) => {
+      const discordId = discordIdFrom(account, profile);
+      if (!discordId) return account?.provider !== "discord";
+      const user = await prisma.user.findUnique({ where: { discordId } });
+      return Boolean(user && !user.suspended);
+    },
+    jwt: async ({ token, user, account, profile }) => {
+      const discordId = discordIdFrom(account, profile);
+      if (discordId) {
+        const discordUser = await prisma.user.findUnique({ where: { discordId } });
+        if (discordUser) {
+          token.id = discordUser.id;
+          token.role = discordUser.role;
+          token.name = discordUser.username;
+          token.email = discordUser.email;
+          return token;
+        }
+      }
       if (user) {
         token.role = (user as { role: "ADMIN" | "WORKER" }).role;
         token.id = user.id as string;
@@ -53,6 +80,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as "ADMIN" | "WORKER";
+        session.user.name = token.name;
+        session.user.email = token.email ?? "";
       }
       return session;
     },

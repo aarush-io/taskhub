@@ -1,4 +1,5 @@
 import { Prisma, TaskStatus } from "@prisma/client";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSettings, rewardForCategory } from "@/lib/services/settings";
 import { creditWorker } from "@/lib/services/balance";
@@ -18,15 +19,75 @@ export async function createTask(input: CreateTaskInput, createdById: string) {
       rewardSnapshot: reward as Prisma.Decimal,
       createdById,
       status: "AVAILABLE",
+      scheduledFor: input.publishAt ? new Date(input.publishAt) : null,
     },
   });
 }
 
-export async function listAvailableTasks(filter?: { category?: "POST" | "COMMENT" | "REPLY" }) {
-  return prisma.task.findMany({
-    where: { status: "AVAILABLE", ...(filter?.category ? { category: filter.category } : {}) },
-    orderBy: { createdAt: "asc" },
+const getCachedAvailableTasks = unstable_cache(
+  async (category: "POST" | "COMMENT" | "REPLY" | null) => {
+    const tasks = await prisma.task.findMany({
+      where: { status: "AVAILABLE", isPaused: false, OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }], ...(category ? { category } : {}) },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return tasks.map((task) => ({
+      ...task,
+      rewardSnapshot: task.rewardSnapshot.toString(),
+      claimedAt: task.claimedAt?.toISOString() ?? null,
+      claimExpiresAt: task.claimExpiresAt?.toISOString() ?? null,
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString(),
+    }));
+  },
+  ["available-tasks"],
+  { revalidate: 15, tags: ["available-tasks"] }
+);
+
+export function listAvailableTasks(filter?: { category?: "POST" | "COMMENT" | "REPLY" }) {
+  return getCachedAvailableTasks(filter?.category ?? null);
+}
+
+/** Uses the same visibility rules as the worker task pool. */
+export function countAvailableTasks() {
+  return prisma.task.count({
+    where: {
+      status: "AVAILABLE",
+      isPaused: false,
+      OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }],
+    },
   });
+}
+
+export type BrowseTasksData = Awaited<ReturnType<typeof getBrowseTasksData>>;
+
+/**
+ * Data needed to render the "browse tasks" view (available tasks + the
+ * worker's own active claims + settings). Fetched as one parallel batch so
+ * callers (the dashboard page and the tasks page) never pay for this twice
+ * or sequentially.
+ */
+export async function getBrowseTasksData(workerId: string, category?: "POST" | "COMMENT" | "REPLY") {
+  const [available, myClaims, settings] = await Promise.all([
+    listAvailableTasks(category ? { category } : undefined),
+    prisma.task.findMany({
+      where: { claimedById: workerId, status: { in: ["CLAIMED", "NEEDS_REVISION"] } },
+      include: { submission: { select: { status: true, adminNote: true } } },
+      orderBy: { claimedAt: "asc" },
+    }),
+    getSettings(),
+  ]);
+
+  const normalizedMyClaims = myClaims.map((task) => ({
+    id: task.id,
+    category: task.category as string,
+    rewardSnapshot: task.rewardSnapshot.toString(),
+    instructions: task.instructions,
+    status: task.submission?.status === "NEEDS_REVISION" ? "NEEDS_REVISION" : (task.status as string),
+    revisionNote: task.submission?.status === "NEEDS_REVISION" ? task.submission.adminNote : null,
+  }));
+
+  return { available, myClaims: normalizedMyClaims, settings };
 }
 
 /**
@@ -35,9 +96,19 @@ export async function listAvailableTasks(filter?: { category?: "POST" | "COMMENT
  * second request's `updateMany` matches zero rows and is rejected.
  */
 export async function claimTask(taskId: string, workerId: string) {
-  const settings = await getSettings();
+  const now = new Date();
 
-  const worker = await prisma.user.findUniqueOrThrow({ where: { id: workerId } });
+  // These three reads are independent of one another, so run them concurrently
+  // instead of paying for three sequential round trips.
+  const [settings, worker, activeCount] = await Promise.all([
+    getSettings(),
+    prisma.user.findUniqueOrThrow({ where: { id: workerId } }),
+    prisma.task.count({
+      where: { claimedById: workerId, status: { in: ["CLAIMED", "SUBMITTED"] } },
+    }),
+  ]);
+
+  if (worker.claimBanned) throw new TaskError("Your account is currently blocked from claiming tasks.");
 
   if (worker.lastClaimAt && settings.claimCooldownMin > 0) {
     const cooldownEnds = new Date(worker.lastClaimAt.getTime() + settings.claimCooldownMin * 60_000);
@@ -48,18 +119,14 @@ export async function claimTask(taskId: string, workerId: string) {
     }
   }
 
-  const activeCount = await prisma.task.count({
-    where: { claimedById: workerId, status: { in: ["CLAIMED", "SUBMITTED"] } },
-  });
   if (activeCount >= settings.maxActiveTasks) {
     throw new TaskError(`You already have ${activeCount} active tasks (limit ${settings.maxActiveTasks}).`);
   }
 
-  const now = new Date();
   const claimExpiresAt = new Date(now.getTime() + settings.claimTimeoutMin * 60_000);
 
   const result = await prisma.task.updateMany({
-    where: { id: taskId, status: "AVAILABLE" },
+    where: { id: taskId, status: "AVAILABLE", isPaused: false, OR: [{ scheduledFor: null }, { scheduledFor: { lte: now } }] },
     data: { status: "CLAIMED", claimedById: workerId, claimedAt: now, claimExpiresAt },
   });
 
@@ -67,34 +134,46 @@ export async function claimTask(taskId: string, workerId: string) {
     throw new TaskError("This task was just claimed by someone else. Try another one.");
   }
 
-  await prisma.user.update({ where: { id: workerId }, data: { lastClaimAt: now, lastActiveAt: now } });
+  // The caller doesn't use the returned task, and the caller's lastActiveAt
+  // bump doesn't need to block the response - fire it without an extra
+  // findUnique round trip afterwards.
+  await prisma.user.update({ where: { id: workerId }, data: { lastActiveAt: now } });
 
-  return prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+  return { id: taskId, claimedById: workerId, claimedAt: now, claimExpiresAt };
 }
 
 export async function submitTask(input: SubmitTaskInput, workerId: string) {
-  const task = await prisma.task.findUnique({ where: { id: input.taskId } });
+  const task = await prisma.task.findUnique({
+    where: { id: input.taskId },
+    include: { submission: { select: { id: true, status: true } } },
+  });
   if (!task) throw new TaskError("Task not found.");
   if (task.claimedById !== workerId) throw new TaskError("You have not claimed this task.");
   if (task.status !== "CLAIMED") throw new TaskError("This task is not awaiting submission.");
 
-  const [submission] = await prisma.$transaction([
-    prisma.submission.create({
-      data: {
-        taskId: task.id,
-        workerId,
-        mainLink: input.mainLink,
-        randomLink1: input.randomLink1,
-        randomLink2: input.randomLink2,
-        randomLink3: input.randomLink3,
-        status: "SUBMITTED",
-      },
-    }),
-    prisma.task.update({ where: { id: task.id }, data: { status: "SUBMITTED" } }),
-    prisma.user.update({ where: { id: workerId }, data: { lastActiveAt: new Date() } }),
-  ]);
+  return prisma.$transaction(async (tx) => {
+    const submittedAt = new Date();
+    const submissionData = {
+      mainLink: input.mainLink,
+      randomLink1: input.randomLink1,
+      randomLink2: input.randomLink2,
+      randomLink3: input.randomLink3,
+      status: "SUBMITTED" as const,
+      reviewedById: null,
+      reviewedAt: null,
+      adminNote: null,
+    };
+    const submission =
+      task.submission?.status === "NEEDS_REVISION"
+        ? await tx.submission.update({ where: { id: task.submission.id }, data: submissionData })
+        : await tx.submission.create({ data: { taskId: task.id, workerId, ...submissionData } });
 
-  return submission;
+    await tx.task.update({ where: { id: task.id }, data: { status: "SUBMITTED" } });
+    // Cooldown starts only once the worker actually submits their current task.
+    await tx.user.update({ where: { id: workerId }, data: { lastActiveAt: submittedAt, lastClaimAt: submittedAt } });
+
+    return submission;
+  });
 }
 
 /**
@@ -125,12 +204,19 @@ export async function reviewSubmission(input: ReviewSubmissionInput, reviewerId:
     // NEEDS_REVISION sends the task back to CLAIMED so the same worker can
     // resubmit, rather than releasing it to the whole pool.
     const nextTaskStatus: TaskStatus =
-      input.decision === "NEEDS_REVISION" ? "CLAIMED" : (input.decision as TaskStatus);
+      input.decision === "NEEDS_REVISION"
+        ? "CLAIMED"
+        : input.decision === "REJECTED"
+          ? "AVAILABLE"
+          : (input.decision as TaskStatus);
 
     await tx.task.update({
       where: { id: submission.taskId },
       data: {
         status: nextTaskStatus,
+        ...(input.decision === "REJECTED"
+          ? { claimedById: null, claimedAt: null, claimExpiresAt: null }
+          : {}),
         ...(input.decision === "NEEDS_REVISION"
           ? { claimExpiresAt: new Date(Date.now() + 60 * 60_000) }
           : {}),
@@ -145,6 +231,35 @@ export async function reviewSubmission(input: ReviewSubmissionInput, reviewerId:
         type: "TASK_APPROVAL",
         note: `Approved: ${submission.task.category} task`,
       });
+
+      const approvedCount = await tx.submission.count({
+        where: { workerId: submission.workerId, status: "APPROVED" },
+      });
+      const referral = approvedCount === 1
+        ? await tx.referral.findUnique({ where: { referredId: submission.workerId } })
+        : null;
+      if (referral?.status === "PENDING") {
+        const settings = await tx.globalSettings.findUnique({ where: { id: "singleton" } });
+        if (settings) {
+          if (settings.referralReward.greaterThan(0)) {
+            await creditWorker(tx, {
+              workerId: referral.referrerId,
+              amount: settings.referralReward,
+              type: "REFERRAL_REWARD",
+              note: "Referral reward: first approved task",
+            });
+          }
+          if (settings.referredWorkerBonus.greaterThan(0)) {
+            await creditWorker(tx, {
+              workerId: submission.workerId,
+              amount: settings.referredWorkerBonus,
+              type: "REFERRAL_BONUS",
+              note: "Referral welcome bonus: first approved task",
+            });
+          }
+        }
+        await tx.referral.update({ where: { id: referral.id }, data: { status: "SUCCESSFUL", rewardedAt: new Date() } });
+      }
     }
 
     return updatedSubmission;

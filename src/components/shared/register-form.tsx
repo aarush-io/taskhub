@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -13,13 +13,14 @@ import { Button } from "@/components/ui/button";
 
 export function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<RegisterInput>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterInput>({ resolver: zodResolver(registerSchema), defaultValues: { referralCode: searchParams.get("ref")?.toUpperCase() ?? "" } });
 
   const onSubmit = async (data: RegisterInput) => {
     setLoading(true);
@@ -51,6 +52,11 @@ export function RegisterForm() {
         <Label htmlFor="redditUsername">Reddit username</Label>
         <Input id="redditUsername" placeholder="u/your_reddit_handle" {...register("redditUsername")} />
         {errors.redditUsername && <p className="text-xs text-danger">{errors.redditUsername.message}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="referralCode">Referral code (optional)</Label>
+        <Input id="referralCode" placeholder="ABC123" {...register("referralCode")} />
+        {errors.referralCode && <p className="text-xs text-danger">{errors.referralCode.message}</p>}
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="password">Password</Label>

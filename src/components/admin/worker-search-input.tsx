@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,21 @@ export function WorkerSearchInput({ defaultValue }: { defaultValue?: string }) {
   const [value, setValue] = useState(defaultValue ?? "");
   const router = useRouter();
 
+  useEffect(() => {
+    const currentQuery = defaultValue ?? "";
+    if (value === currentQuery) return;
+
+    const timeout = window.setTimeout(() => {
+      const url = new URL(window.location.href);
+      if (value) url.searchParams.set("q", value);
+      else url.searchParams.delete("q");
+      url.searchParams.delete("page");
+      router.replace(url.pathname + url.search);
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [defaultValue, router, value]);
+
   return (
     <form
       onSubmit={(e) => {
@@ -16,7 +31,8 @@ export function WorkerSearchInput({ defaultValue }: { defaultValue?: string }) {
         const url = new URL(window.location.href);
         if (value) url.searchParams.set("q", value);
         else url.searchParams.delete("q");
-        router.push(url.pathname + url.search);
+        url.searchParams.delete("page");
+        router.replace(url.pathname + url.search);
       }}
       className="relative w-full max-w-sm"
     >
